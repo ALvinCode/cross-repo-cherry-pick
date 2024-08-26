@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import inquirer from "inquirer";
-const { execSync } = require("child_process");
+import { execSync } from "child_process";
 
 // Define questions
 const questions = [
@@ -9,21 +9,25 @@ const questions = [
     type: "input",
     name: "sourceRepo",
     message: "Enter the source repository URL:",
+    validate: (input) => (input ? true : "Source repository URL is required."),
   },
   {
     type: "input",
     name: "sourceBranch",
     message: "Enter the source branch name:",
+    validate: (input) => (input ? true : "Source branch name is required."),
   },
   {
     type: "input",
     name: "commitHash",
     message: "Enter the commit hash to cherry-pick:",
+    validate: (input) => (input ? true : "Commit hash is required."),
   },
   {
     type: "input",
     name: "targetBranch",
     message: "Enter the target branch name:",
+    validate: (input) => (input ? true : "Target branch name is required."),
   },
 ];
 
@@ -32,6 +36,12 @@ async function main() {
   try {
     const answers = await inquirer.prompt(questions);
     const { sourceRepo, sourceBranch, commitHash, targetBranch } = answers;
+
+    // Validate if any field is empty
+    if (!sourceRepo || !sourceBranch || !commitHash || !targetBranch) {
+      console.error("All fields are required. Please provide valid inputs.");
+      process.exit(1);
+    }
 
     console.log("Adding source repository...");
     execSync(`git remote add source-repo ${sourceRepo}`);
