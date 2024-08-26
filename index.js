@@ -3,6 +3,7 @@
 const inquirer = require("inquirer");
 const { execSync } = require("child_process");
 
+// Define questions
 const questions = [
   {
     type: "input",
@@ -26,6 +27,7 @@ const questions = [
   },
 ];
 
+// Prompt user for input
 inquirer.prompt(questions).then((answers) => {
   const { sourceRepo, sourceBranch, commitHash, targetBranch } = answers;
 
