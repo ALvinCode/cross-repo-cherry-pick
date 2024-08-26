@@ -28,10 +28,11 @@ const questions = [
 ];
 
 // Prompt user for input
-inquirer.prompt(questions).then((answers) => {
-  const { sourceRepo, sourceBranch, commitHash, targetBranch } = answers;
-
+async function main() {
   try {
+    const answers = await inquirer.prompt(questions);
+    const { sourceRepo, sourceBranch, commitHash, targetBranch } = answers;
+
     console.log("Adding source repository...");
     execSync(`git remote add source-repo ${sourceRepo}`);
 
@@ -47,35 +48,34 @@ inquirer.prompt(questions).then((answers) => {
     console.log("Cherry-pick encountered conflicts. Please resolve manually.");
     execSync("git status", { stdio: "inherit" });
 
-    inquirer
-      .prompt([
-        {
-          type: "confirm",
-          name: "continueAfterConflict",
-          message: "Press Enter to continue after resolving conflicts.",
-        },
-      ])
-      .then(() => {
-        execSync("git add -A");
-        execSync("git cherry-pick --continue", { stdio: "inherit" });
-      });
-  }
-
-  inquirer
-    .prompt([
+    await inquirer.prompt([
       {
         type: "confirm",
-        name: "pushChanges",
-        message: "Do you want to push the changes to the remote repository?",
+        name: "continueAfterConflict",
+        message: "Press Enter to continue after resolving conflicts.",
       },
-    ])
-    .then((confirm) => {
-      if (confirm.pushChanges) {
-        execSync(`git push origin ${targetBranch}`, { stdio: "inherit" });
-        console.log("Changes successfully pushed.");
-      } else {
-        console.log("Merge completed but not pushed.");
-      }
-      execSync("git remote remove source-repo");
-    });
-});
+    ]);
+
+    execSync("git add -A");
+    execSync("git cherry-pick --continue", { stdio: "inherit" });
+  }
+
+  const confirm = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "pushChanges",
+      message: "Do you want to push the changes to the remote repository?",
+    },
+  ]);
+
+  if (confirm.pushChanges) {
+    execSync(`git push origin ${targetBranch}`, { stdio: "inherit" });
+    console.log("Changes successfully pushed.");
+  } else {
+    console.log("Merge completed but not pushed.");
+  }
+  execSync("git remote remove source-repo");
+}
+
+// Run the main function
+main();
