@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const inquirer = require("inquirer");
+import inquirer from "inquirer";
 const { execSync } = require("child_process");
 
 // Define questions
