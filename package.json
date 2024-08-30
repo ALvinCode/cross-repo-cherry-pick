@@ -1,6 +1,6 @@
 {
   "name": "cross-repo-cherry-pick",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Perform cherry-pick operations between projects to reduce duplication of work when developing the same module for projects with only partial differences. This allows multiple projects to be maintained independently and synchronized.",
   "main": "index.js",
   "type": "module",
@@ -8,7 +8,6 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "cross-repo-cherry-pick": "./index.js",
     "crcp": "./index.js"
   },
   "keywords": [],
