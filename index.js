@@ -428,7 +428,7 @@ async function main() {
         chalk.red("Prompt couldn’t be rendered in the current environment.")
       );
     } else {
-      console.error(chalk.red("An error occurred:", error.message));
+      process.exit(1);
     }
     process.exit(1);
   }
