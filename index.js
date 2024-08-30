@@ -40,13 +40,13 @@ function getLastRemote() {
   try {
     const remotes = execSync("git remote -v").toString().trim();
     const remoteArray = remotes.split("\n");
-    // 打印已关联的远程仓库;
+    // Print the associated remote repositories;
     formatConnectedWarehouse(remoteArray);
 
-    // 检查是否有远程仓库
+    // Check if there is a remote repository
     if (remoteArray.length === 0) return defaultRemoteInfo;
 
-    // 获取第一个包含 `(fetch)` 的远程仓库
+    // Get the first remote repository containing `(fetch)`
     const firstFetchRemote = remoteArray.find((line) =>
       line.includes("(fetch)")
     );
@@ -142,7 +142,7 @@ function createBranch(branchName, sourceBranch) {
 // Execute cherry pick
 function cherryPickAndHandleConflicts(commitHash) {
   console.log(chalk.greenBright(`Cherry-picking commit ${commitHash}...`));
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     try {
       const gitProcess = spawn("git", ["cherry-pick", commitHash]);
 
@@ -161,11 +161,11 @@ function cherryPickAndHandleConflicts(commitHash) {
           console.log(chalk.greenBright("Cherry-pick successful"));
           resolve();
         } else {
-          reject(false);
+          reject();
         }
       });
     } catch (error) {
-      reject(error);
+      reject();
     }
   });
 }
@@ -181,11 +181,11 @@ function normalizeUrl(url) {
 
   if (sshPattern.test(url)) {
     // If it is an SSH format URL (such as git@gitlab.com:user/repo.git)
-    const [, host, user, repo] = url.match(sshPattern);
+    const [, host, user, repo] = RegExp(sshPattern).exec(url);
     return `https://${host}/${user}/${repo}.git`;
   } else if (httpsPattern.test(url)) {
     // If it is an HTTPS URL (such as https://gitlab.com/user/repo.git)
-    const [, host, user, repo] = url.match(httpsPattern);
+    const [, host, user, repo] = RegExp(httpsPattern).exec(url);
     return `https://${host}/${user}/${repo}.git`;
   } else {
     throw new Error("Invalid URL format");
@@ -389,32 +389,27 @@ async function main() {
       }
 
       // Execute cherry pick
-      cherryPickAndHandleConflicts(commitHash)
-        .then(() => {
-          // If there is no conflict, prompt the user whether to push
-          const confirm = inquirer.prompt([
-            {
-              type: "confirm",
-              name: "pushChanges",
-              message:
-                "Do you want to push the changes to the remote repository?",
-            },
-          ]);
+      cherryPickAndHandleConflicts(commitHash).then(() => {
+        // If there is no conflict, prompt the user whether to push
+        const confirm = inquirer.prompt([
+          {
+            type: "confirm",
+            name: "pushChanges",
+            message:
+              "Do you want to push the changes to the remote repository?",
+          },
+        ]);
 
-          if (confirm.pushChanges) {
-            console.log("confirm pushChanges");
-            execSync(
-              `git push -f origin temp-${sourceBranch}:${targetBranch}`,
-              {
-                stdio: "inherit",
-              }
-            );
-            console.log(chalk.green("Changes successfully pushed."));
-          } else {
-            console.log(chalk.yellow("Merge completed but not pushed."));
-          }
-        })
-        .catch((error) => {});
+        if (confirm.pushChanges) {
+          console.log("confirm pushChanges");
+          execSync(`git push -f origin temp-${sourceBranch}:${targetBranch}`, {
+            stdio: "inherit",
+          });
+          console.log(chalk.green("Changes successfully pushed."));
+        } else {
+          console.log(chalk.yellow("Merge completed but not pushed."));
+        }
+      });
 
       // Clean up
       console.log(chalk.gray("Cleaning up..."));
