@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync, exec } from "child_process";
+import { execSync, exec, spawn } from "child_process";
 import util from "util";
 import inquirer from "inquirer";
 import chalk from "chalk";
@@ -91,6 +91,9 @@ function getRepoNameFromUrl(url) {
 
 // Check branch exists
 function branchExists(branchName) {
+  console.log(
+    chalk.yellowBright(`Checking if target branch "${targetBranch}" exists...`)
+  );
   try {
     const branches = execSync(`git branch --list ${branchName}`, {
       encoding: "utf-8",
@@ -136,82 +139,76 @@ function createBranch(branchName, sourceBranch) {
   console.log();
 }
 
-// 将方法改造成返回 Promise 的函数
+// Execute cherry pick
 function cherryPickAndHandleConflicts(commitHash) {
+  console.log(chalk.greenBright(`Cherry-picking commit ${commitHash}...`));
   return new Promise(async (resolve, reject) => {
     try {
-      // 执行 cherry-pick 操作
-      execSync(`git cherry-pick ${commitHash}`, { stdio: "inherit" });
+      const gitProcess = spawn("git", ["cherry-pick", commitHash]);
 
-      // 检查是否存在冲突
-      const statusOutput = execSync("git status --porcelain", {
-        encoding: "utf-8",
-      }).trim();
+      gitProcess.stdout.on("data", (data) => {
+        console.log(`[stdout] ${data}`);
+      });
 
-      if (statusOutput.includes("U ")) {
-        // 如果有冲突
-        console.log(chalk.magenta("Conflicts detected:"));
+      // Capture data from the standard error stream
+      gitProcess.stderr.on("data", (data) => {
+        console.error(`[stderr] ${data}`);
+      });
 
-        // 列出冲突文件
-        const conflictFiles = execSync("git diff --name-only --diff-filter=U", {
-          encoding: "utf-8",
-        })
-          .trim()
-          .split("\n");
-        console.log("Conflicted files:");
-        conflictFiles.forEach((file) => console.log(`- ${file}`));
-
-        // 列出改动文件
-        const changedFiles = execSync("git diff --name-only", {
-          encoding: "utf-8",
-        })
-          .trim()
-          .split("\n");
-        console.log("Changed files:");
-        changedFiles.forEach((file) => console.log(`- ${file}`));
-
-        // 提示用户解决冲突
-        console.log(
-          chalk.whiteBright(
-            "\nPlease resolve the conflicts manually and commit the changes before pushing."
-          )
-        );
-
-        // 存在冲突时 resolve false
-        resolve(false);
-      } else {
-        // 没有冲突，列出改动文件
-        const { stdout, stderr } = await execAsync(
-          "git log -1 --stat && git diff --staged"
-        );
-
-        if (stderr) {
-          console.error(chalk.red(`stderr: ${stderr}`));
-          reject(new Error(`stderr: ${stderr}`));
-          return;
+      // Listen for command execution completion events
+      gitProcess.on("close", (code) => {
+        if (code === 0) {
+          console.log(chalk.greenBright("Cherry-pick successful"));
+          resolve();
+        } else {
+          reject(false);
         }
-
-        console.log(stdout);
-        resolve(true); // 没有冲突且列出改动文件后 resolve true
-      }
+      });
     } catch (error) {
-      console.error(chalk.red("Failed to execute cherry-pick:", error.message));
-      reject(error); // 发生错误时 reject
+      reject(error);
     }
   });
 }
 
-function checkRemoteExists(remoteRepo) {
-  console.log("remoteRepo", remoteRepo);
-  try {
-    const remotes = execSync("git remote -v").toString().trim();
-    const remoteLines = remotes.split("\n");
-    console.log("remoteLines", remoteLines);
+/**
+ * Standardize Git repository URLs to a unified HTTPS format
+ * @param {string} url - Enter the repository URL
+ * @returns {string} - Standardized URLs
+ */
+function normalizeUrl(url) {
+  const sshPattern = /^git@([^:]+):([^/]+)\/(.+)\.git$/;
+  const httpsPattern = /^https?:\/\/([^/]+)\/([^/]+)\/(.+)\.git$/;
 
-    const exists = remoteLines.some((line) => line.includes(remoteRepo));
-    return exists;
+  if (sshPattern.test(url)) {
+    // If it is an SSH format URL (such as git@gitlab.com:user/repo.git)
+    const [, host, user, repo] = url.match(sshPattern);
+    return `https://${host}/${user}/${repo}.git`;
+  } else if (httpsPattern.test(url)) {
+    // If it is an HTTPS URL (such as https://gitlab.com/user/repo.git)
+    const [, host, user, repo] = url.match(httpsPattern);
+    return `https://${host}/${user}/${repo}.git`;
+  } else {
+    throw new Error("Invalid URL format");
+  }
+}
+
+// Check whether the remote repository to be associated already exists
+function checkRemoteExists(remoteRepo) {
+  try {
+    // Get a list of all connected remote repositories
+    const remotes = execSync("git remote -v", { encoding: "utf-8" })
+      .split("\n")
+      .map((line) => line.split("\t")[1]) // Get URL Part
+      .filter(Boolean) // Filter out empty lines
+      .map((line) => line.split(" ")[0]) // Filter out the fetch/push part
+      .filter(Boolean) // Filter out empty lines
+      .map(normalizeUrl); // Standardized URLs
+
+    // Standardize input repository URLs
+    const normalizedInputUrl = normalizeUrl(remoteRepo);
+    return remotes.includes(normalizedInputUrl);
   } catch (error) {
-    console.error("Failed to list remotes:", error.message);
+    console.error("Error:", error.message);
     return false;
   }
 }
@@ -345,7 +342,7 @@ async function main() {
             ]);
             if (useRemote) {
               // Skip current logic and continue with the rest of the logic
-              console.log("Using existing remote repository...");
+              console.log(chalk.blue("Using existing remote repository..."));
             } else {
               // User opted not to use the existing repository, terminate the program
               console.log(
@@ -373,12 +370,8 @@ async function main() {
       // Create a temporary branch - 'temp-${sourceBranch}'
       createBranch(`temp-${sourceBranch}`, `${projectName}/${sourceBranch}`);
 
-      // 检查当前项目是否已经存在目标分支，如果存在，则切换到目标分支执行cherry-pick，否则创建新分支执行cherry-pick
-      console.log(
-        chalk.yellowBright(
-          `Checking if target branch "${targetBranch}" exists...`
-        )
-      );
+      // Check whether the target branch already exists in the current project.
+      // If so, switch to the target branch and execute cherry - pick.Otherwise, create a new branch and execute cherry - pick.
       if (branchExists(targetBranch)) {
         console.log(
           `The target branch already exists, switch to the target branch - "${targetBranch}"...`
@@ -389,34 +382,39 @@ async function main() {
         console.log(
           `Target branch does not exist, create and switch to the target branch - "${targetBranch}"...`
         );
-        // 创建目标分支并关联远程分支
+        // Create a target branch and associate it with a remote branch
         execSync(`git checkout -b ${targetBranch}`);
         execSync(`git push -u origin ${targetBranch}`);
         console.log();
       }
 
-      console.log(chalk.greenBright(`Cherry-picking commit ${commitHash}...`));
-      const cherryPickResult = await cherryPickAndHandleConflicts(commitHash);
-      if (cherryPickResult) {
-        // 没有冲突，提示用户是否推送
-        const confirm = await inquirer.prompt([
-          {
-            type: "confirm",
-            name: "pushChanges",
-            message:
-              "Do you want to push the changes to the remote repository?",
-          },
-        ]);
+      // Execute cherry pick
+      cherryPickAndHandleConflicts(commitHash)
+        .then(() => {
+          // If there is no conflict, prompt the user whether to push
+          const confirm = inquirer.prompt([
+            {
+              type: "confirm",
+              name: "pushChanges",
+              message:
+                "Do you want to push the changes to the remote repository?",
+            },
+          ]);
 
-        if (confirm.pushChanges) {
-          execSync(`git push -f origin temp-${sourceBranch}:${targetBranch}`, {
-            stdio: "inherit",
-          });
-          console.log(chalk.green("Changes successfully pushed."));
-        } else {
-          console.log(chalk.yellow("Merge completed but not pushed."));
-        }
-      }
+          if (confirm.pushChanges) {
+            console.log("confirm pushChanges");
+            execSync(
+              `git push -f origin temp-${sourceBranch}:${targetBranch}`,
+              {
+                stdio: "inherit",
+              }
+            );
+            console.log(chalk.green("Changes successfully pushed."));
+          } else {
+            console.log(chalk.yellow("Merge completed but not pushed."));
+          }
+        })
+        .catch((error) => {});
 
       // Clean up
       console.log(chalk.gray("Cleaning up..."));

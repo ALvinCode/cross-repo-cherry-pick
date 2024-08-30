@@ -8,7 +8,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "cherry-picker": "./index.js"
+    "cherry-picker": "./index.js",
+    "cpr": "./index.js"
   },
   "keywords": [],
   "author": "Kuo.Zheng",
