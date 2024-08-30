@@ -71,7 +71,7 @@ function getRepoNameFromUrl(url) {
       /^(?:https?:\/\/|git@)(?:[^/:]+)[/:]([^/]+\/[^/.]+)(?:\.git)?$/i;
     const match = url.match(regex);
     if (match) {
-      // 提取最后一个路径段作为项目名称
+      // Extract the last path segment as the project name
       const repoPath = match[1];
       const repoName = repoPath.split("/").pop();
       return repoName;
