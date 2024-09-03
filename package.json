@@ -1,11 +1,15 @@
 {
   "name": "@advance/cross-repo-cherry-pick",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Perform cherry-pick operations between projects to reduce duplication of work when developing the same module for projects with only partial differences. This allows multiple projects to be maintained independently and synchronized.",
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "prepublishOnly": "chmod +x index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "publishConfig": {
+    "registry": "https://verdaccio.atomecorp.net/"
   },
   "bin": {
     "crcp": "./index.js"
