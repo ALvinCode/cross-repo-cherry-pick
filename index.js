@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 
-import { execSync, exec, spawn } from "child_process";
-import util from "util";
+import { execSync, spawn } from "child_process";
 import inquirer from "inquirer";
 import chalk from "chalk";
-
-const execAsync = util.promisify(exec);
 
 // Handle Ctrl + C (SIGINT) gracefully
 process.on("SIGINT", () => {
