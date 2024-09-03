@@ -89,7 +89,7 @@ function getRepoNameFromUrl(url) {
 // Check branch exists
 function branchExists(branchName) {
   console.log(
-    chalk.yellowBright(`Checking if target branch "${targetBranch}" exists...`)
+    chalk.yellowBright(`Checking if target branch "${branchName}" exists...`)
   );
   try {
     const branches = execSync(`git branch --list ${branchName}`, {
@@ -121,19 +121,28 @@ function deleteBranch(branchName) {
 
 // Check and work on existing branches before creating new ones
 function createBranch(branchName, sourceBranch) {
-  if (branchExists(branchName)) {
-    deleteBranch(branchName);
-    console.log();
-  }
+  try {
+    if (branchExists(branchName)) {
+      deleteBranch(branchName);
+      console.log();
+    }
 
-  // Create a new branch
-  execSync(`git checkout -b ${branchName} ${sourceBranch}`);
-  console.log(
-    chalk.greenBright(
-      `Create and switch to a new temporary branch - "${branchName}".`
-    )
-  );
-  console.log();
+    // Create a new branch
+    execSync(`git checkout -b ${branchName} ${sourceBranch}`);
+    console.log(
+      chalk.greenBright(
+        `Create and switch to a new temporary branch - "${branchName}".`
+      )
+    );
+    console.log();
+  } catch (error) {
+    console.error(
+      chalk.red(
+        `Failed to create and switch to a new temporary branch - "${branchName}". ${error.message}`
+      )
+    );
+    process.exit(1);
+  }
 }
 
 // Execute cherry pick
@@ -286,7 +295,16 @@ async function main() {
 
     try {
       const answers = await inquirer.prompt(questions);
-      const { sourceBranch, commitHash, targetBranch } = answers;
+      let { sourceBranch, commitHash, targetBranch } = answers;
+      // Remove spaces
+      try {
+        sourceRepo = sourceRepo.trim();
+        sourceBranch = sourceBranch.trim();
+        commitHash = commitHash.trim();
+      } catch (error) {
+        console.log(error);
+      }
+
       const projectName = getRepoNameFromUrl(sourceRepo);
       console.log();
       // Confirmation Information list
@@ -386,27 +404,38 @@ async function main() {
       }
 
       // Execute cherry pick
-      cherryPickAndHandleConflicts(commitHash).then(() => {
-        // If there is no conflict, prompt the user whether to push
-        const confirm = inquirer.prompt([
-          {
-            type: "confirm",
-            name: "pushChanges",
-            message:
-              "Do you want to push the changes to the remote repository?",
-          },
-        ]);
+      cherryPickAndHandleConflicts(commitHash)
+        .then(() => {
+          // If there is no conflict, prompt the user whether to push
+          const confirm = inquirer.prompt([
+            {
+              type: "confirm",
+              name: "pushChanges",
+              message:
+                "Do you want to push the changes to the remote repository?",
+            },
+          ]);
 
-        if (confirm.pushChanges) {
-          console.log("confirm pushChanges");
-          execSync(`git push -f origin temp-${sourceBranch}:${targetBranch}`, {
-            stdio: "inherit",
-          });
-          console.log(chalk.green("Changes successfully pushed."));
-        } else {
-          console.log(chalk.yellow("Merge completed but not pushed."));
-        }
-      });
+          if (confirm.pushChanges) {
+            console.log("Confirm pushChanges");
+            execSync(
+              `git push -f origin temp-${sourceBranch}:${targetBranch}`,
+              {
+                stdio: "inherit",
+              }
+            );
+            console.log(chalk.green("Changes successfully pushed."));
+          } else {
+            console.log(chalk.yellow("Merge completed but not pushed."));
+          }
+        })
+        .catch(() => {
+          console.error(
+            chalk.red(
+              "Cherry-pick failed. Resolve the conflicts and perform the merge manually."
+            )
+          );
+        });
 
       // Clean up
       console.log(chalk.gray("Cleaning up..."));
