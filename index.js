@@ -26,6 +26,9 @@ async function getUserCustomRepositories() {
           input ? true : "Source repository URL is required.",
       },
     ]);
+
+    // ToDo 这里没有等待用户输入答案
+    console.log("inputRepoUrl", inputRepoUrl);
     if (checkRemoteExists(inputRepoUrl)) {
       // The library entered by the user already exists
       const { useRemote } = await inquirer.prompt([
@@ -42,11 +45,9 @@ async function getUserCustomRepositories() {
         sourceRepoUrl = inputRepoUrl;
       } else {
         // If you do not use an existing remote repository, re-enter
-        return getUserCustomRepositories();
+        return await getUserCustomRepositories();
       }
     } else {
-      // The library entered by the user does not exist, add a new remote repository
-      // TODO Get the project name through the URL, and the project name need to update globally
       try {
         console.log(chalk.greenBright("Adding from source repository..."));
         const repoName = getRepoNameFromUrl(inputRepoUrl);
@@ -89,10 +90,10 @@ async function getRepositories(lastRemoteName, lastRemoteUrl) {
       if (useExistingRemote) {
         usingRemoteUrl = lastRemoteUrl;
       } else {
-        usingRemoteUrl = getUserCustomRepositories();
+        usingRemoteUrl = await getUserCustomRepositories();
       }
     } else {
-      usingRemoteUrl = getUserCustomRepositories();
+      usingRemoteUrl = await getUserCustomRepositories();
     }
     usingRemoteName = getRepoNameFromUrl(usingRemoteUrl);
     return { usingRemoteUrl, usingRemoteName };
@@ -165,6 +166,7 @@ function getRepoNameFromUrl(url) {
       // Extract the last path segment as the project name
       const repoPath = match[1];
       const repoName = repoPath.split("/").pop();
+      console.log("repoName", repoName);
       return repoName;
     } else {
       console.log(
