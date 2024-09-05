@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync, spawn } from "child_process";
+import { execSync, exec, spawn } from "child_process";
 import inquirer from "inquirer";
 import chalk from "chalk";
 
@@ -10,42 +10,14 @@ process.on("SIGINT", () => {
   process.exit(1);
 });
 
-// 是否使用最近添加的远程存储库
-async function useRecentRemote(lastRemoteName, lastRemoteUrl) {
-  let sourceRepo;
-  let useExixtingRemote = false;
-  if (
-    typeof lastRemoteName === "string" &&
-    lastRemoteName !== "undefined" &&
-    lastRemoteName !== "null" &&
-    lastRemoteName
-  ) {
-    const { useExistingRemote } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "useExistingRemote",
-        message: `Use the most recently added remote repository "${lastRemoteName}"?`,
-        default: true,
-      },
-    ]);
-
-    if (useExistingRemote) {
-      sourceRepo = lastRemoteUrl;
-      useExixtingRemote = true;
-    } else {
-      const { newSourceRepo } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "newSourceRepo",
-          message: "Enter the source repository URL:",
-          validate: (input) =>
-            input ? true : "Source repository URL is required.",
-        },
-      ]);
-      sourceRepo = newSourceRepo;
-    }
-  } else {
-    const { newSourceRepo } = await inquirer.prompt([
+/**
+ * Custom repositories by users
+ * @returns sourceRepoUrl string
+ */
+async function getUserCustomRepositories() {
+  try {
+    let sourceRepoUrl = "";
+    const { inputRepoUrl } = await inquirer.prompt([
       {
         type: "input",
         name: "newSourceRepo",
@@ -54,52 +26,79 @@ async function useRecentRemote(lastRemoteName, lastRemoteUrl) {
           input ? true : "Source repository URL is required.",
       },
     ]);
-    sourceRepo = newSourceRepo;
-  }
-  return { sourceRepo, useExixtingRemote };
-}
-
-// Select/link remote repository
-async function initializeNewRepository(
-  sourceRepo,
-  projectName,
-  useExixtingRemote
-) {
-  // Link remote warehouse
-  if (!useExixtingRemote) {
-    try {
-      // Check if the remote repository exists:
-      // If it does, ask the user whether to use this repository.
-      // If it does not exist, add a remote repository.
-      if (checkRemoteExists(sourceRepo)) {
-        const { useRemote } = await inquirer.prompt([
-          {
-            type: "confirm",
-            name: "useRemote",
-            message: `Remote repository "${sourceRepo}" already exists, do you want to use it?`,
-            default: true,
-          },
-        ]);
-        if (useRemote) {
-          // Skip current logic and continue with the rest of the logic
-          console.log(chalk.blue("Using existing remote repository..."));
-        } else {
-          // User opted not to use the existing repository, terminate the program
-          console.log(
-            "You have opted not to use the existing remote repository."
-          );
-          process.exit(1);
-        }
+    if (checkRemoteExists(inputRepoUrl)) {
+      // The library entered by the user already exists
+      const { useRemote } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "useRemote",
+          message: `Remote repository "${inputRepoUrl}" already exists, do you want to use it?`,
+          default: true,
+        },
+      ]);
+      if (useRemote) {
+        console.log(chalk.blue("Using existing remote repository"));
+        // todo inputRepoUrl是否需要格式化？
+        sourceRepoUrl = inputRepoUrl;
       } else {
+        // If you do not use an existing remote repository, re-enter
+        return getUserCustomRepositories();
+      }
+    } else {
+      // The library entered by the user does not exist, add a new remote repository
+      // TODO Get the project name through the URL, and the project name need to update globally
+      try {
         console.log(chalk.greenBright("Adding from source repository..."));
-        execSync(`git remote add ${projectName} ${sourceRepo}`, {
+        const repoName = getRepoNameFromUrl(inputRepoUrl);
+        execSync(`git remote add ${repoName} ${inputRepoUrl}`, {
           stdio: "ignore",
         });
+        sourceRepoUrl = inputRepoUrl;
+      } catch (error) {
+        console.error(chalk.red(error.message));
+        process.exit(1);
       }
-    } catch (error) {
-      console.error(chalk.red(error.message));
-      process.exit(1);
     }
+    return sourceRepoUrl;
+  } catch (error) {
+    console.error(chalk.red(error.message));
+    process.exit(1);
+  }
+}
+
+// 是否使用最近添加的远程存储库
+async function getRepositories(lastRemoteName, lastRemoteUrl) {
+  try {
+    let usingRemoteUrl;
+    let usingRemoteName;
+    if (
+      typeof lastRemoteName === "string" &&
+      lastRemoteName !== "undefined" &&
+      lastRemoteName !== "null" &&
+      lastRemoteName
+    ) {
+      const { useExistingRemote } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "useExistingRemote",
+          message: `Use the most recently added remote repository "${lastRemoteName}"?`,
+          default: true,
+        },
+      ]);
+
+      if (useExistingRemote) {
+        usingRemoteUrl = lastRemoteUrl;
+      } else {
+        usingRemoteUrl = getUserCustomRepositories();
+      }
+    } else {
+      usingRemoteUrl = getUserCustomRepositories();
+    }
+    usingRemoteName = getRepoNameFromUrl(usingRemoteUrl);
+    return { usingRemoteUrl, usingRemoteName };
+  } catch (error) {
+    console.error(chalk.red(error.message));
+    process.exit(1);
   }
 }
 
@@ -160,6 +159,8 @@ function getRepoNameFromUrl(url) {
     const regex =
       /^(?:https?:\/\/|git@)(?:[^/:]+)[/:]([^/]+\/[^/.]+)(?:\.git)?$/i;
     const match = url.match(regex);
+    console.log("match", match);
+    // todo 解决这里的报错问题
     if (match) {
       // Extract the last path segment as the project name
       const repoPath = match[1];
@@ -319,7 +320,7 @@ function checkRemoteExists(remoteRepo) {
 function getCommits(remoteName, branch) {
   return new Promise((resolve, reject) => {
     exec(
-      `git fetch ${remoteName} ${branch} && git log ${remoteName}/${branch} --pretty=format:"%h - %s (%an, %ar)"`,
+      `git fetch ${remoteName} ${branch} && git log ${remoteName}/${branch} --pretty=format:"%ad %an > %s - %h" --date=format:'%Y-%m-%d %H:%M:%S'`,
       (error, stdout) => {
         if (error) {
           reject(`Error fetching commits: ${error.message}`);
@@ -327,11 +328,12 @@ function getCommits(remoteName, branch) {
         }
 
         // Parse git log output and decompose it into an array of commit record objects
-        const commits = stdout.split("\n").map((line) => {
-          const [hash, ...rest] = line.split(" - ");
-          const message = rest.join(" - ");
+        const commits = stdout.split("\n").map((line, index) => {
+          const [message, ...rest] = line.split(" - ");
+          const hash = rest.join(" - ");
+          const formattedMessage = index === 0 ? chalk.green(message) : message;
           return {
-            name: message,
+            name: `${formattedMessage} (${hash})`,
             value: hash.trim(),
           };
         });
@@ -342,49 +344,53 @@ function getCommits(remoteName, branch) {
   });
 }
 
-function questions() {
-  return {
-    question1: async () => {
-      const { sourceBranch } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "sourceBranch",
-          message: "Enter the source branch name:",
-          validate: (input) =>
-            input ? true : "Source branch name is required.",
-        },
-      ]);
-      return sourceBranch ? sourceBranch.trim() : "";
-    },
-    question2: async (sourceRepo, sourceBranch) => {
-      const commits = await getCommits(sourceRepo, sourceBranch);
+const questions = {
+  question1: async () => {
+    const { sourceBranch } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "sourceBranch",
+        message: "Enter the source branch name:",
+        validate: (input) => (input ? true : "Source branch name is required."),
+      },
+    ]);
+    return sourceBranch ? sourceBranch.trim() : "";
+  },
+  question2: async (repoName, sourceBranch) => {
+    try {
+      const commits = await getCommits(repoName, sourceBranch);
       const { selectedCommit } = await inquirer.prompt([
         {
           type: "list",
           name: "selectedCommit",
-          message: `请选择一个提交记录 (${branch} 分支):`,
+          message: `Please select a commit record (${sourceBranch} branch):`,
           choices: commits,
+          loop: false,
+          pageSize: 10,
         },
       ]);
       return selectedCommit;
-    },
-    questions3: async () => {
-      const { targetBranch } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "targetBranch",
-          message: "Enter the target branch name:",
-          validate: (input) =>
-            input ? true : "Target branch name is required.",
-        },
-      ]);
-      return targetBranch ? targetBranch.trim() : "";
-    },
-  };
-}
+    } catch (error) {
+      console.error(chalk.red(error));
+      process.exit(1);
+    }
+  },
+  questions3: async () => {
+    const { targetBranch } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "targetBranch",
+        message: "Enter the target branch name:",
+        validate: (input) => (input ? true : "Target branch name is required."),
+      },
+    ]);
+    console.log("targetBranch", targetBranch);
+    return targetBranch ? targetBranch.trim() : "";
+  },
+};
 
 function printConfirmationInfo(
-  projectName,
+  repoName,
   sourceRepo,
   sourceBranch,
   commitHash,
@@ -394,7 +400,7 @@ function printConfirmationInfo(
   const confirmInfo = [
     {
       "Confirmation Item": "Source project    ",
-      Value: chalk.yellow(projectName),
+      Value: chalk.yellow(repoName),
     },
     {
       "Confirmation Item": "Source repo       ",
@@ -424,117 +430,105 @@ function printConfirmationInfo(
 
 // Prompt user for input
 async function main() {
-  try {
-    // Confirm the associated warehouse information
-    const { lastRemoteName, lastRemoteUrl } = getLastRemote();
+  // try {
+  // Confirm the associated warehouse information
+  const { lastRemoteName, lastRemoteUrl } = getLastRemote();
 
-    // Confirm the source repository and whether to use the most recently added remote repository
-    const { sourceRepo, useExixtingRemote } = useRecentRemote(
-      lastRemoteName,
-      lastRemoteUrl
+  // Confirm the source repository and whether to use the most recently added remote repository
+  const { usingRemoteUrl, usingRemoteName } = await getRepositories(
+    lastRemoteName,
+    lastRemoteUrl
+  );
+
+  try {
+    const sourceBranch = await questions.question1();
+    const selectedCommit = await questions.question2(
+      usingRemoteName,
+      sourceBranch
+    );
+    const commitHash = selectedCommit;
+    const targetBranch = await questions.questions3();
+
+    // Print confirmation information
+    printConfirmationInfo(
+      usingRemoteName,
+      usingRemoteUrl,
+      sourceBranch,
+      commitHash,
+      targetBranch
     );
 
-    // Get the project name from the repository URL
-    const projectName = getRepoNameFromUrl(sourceRepo);
+    // pull remote warehouse
+    console.log(chalk.greenBright("Fetching from source repository..."));
+    execSync(`git fetch ${usingRemoteName} ${sourceBranch}`);
     console.log();
 
-    // Do not choose to use an existing warehouse, use a new warehouse
-    initializeNewRepository(sourceRepo, projectName, useExixtingRemote);
+    // Create a temporary branch - 'temp-${sourceBranch}'
+    createBranch(`temp-${sourceBranch}`, `${usingRemoteName}/${sourceBranch}`);
 
-    try {
-      // todo 分离提问逻辑
-      const sourceBranch = await questions().question1();
-      const selectedCommit = await questions().question2(
-        sourceRepo,
-        sourceBranch
+    // ToDo 以下部分需要抽离出来
+    // Check whether the target branch already exists in the current project.
+    // If so, switch to the target branch and execute cherry - pick.Otherwise, create a new branch and execute cherry - pick.
+    if (branchExists(targetBranch)) {
+      console.log(
+        `The target branch already exists, switch to the target branch - "${targetBranch}"...`
       );
-      console.log("selectedCommit", selectedCommit);
-      // todo 需要从结果中获取用户选择的commit hash
-      const commitHash = "";
-      const targetBranch = await questions().questions3();
-
-      // pull remote warehouse
-      console.log(chalk.greenBright("Fetching from source repository..."));
-      execSync(`git fetch ${projectName} ${sourceBranch}`);
+      execSync(`git checkout ${targetBranch}`);
       console.log();
-
-      // Print confirmation information
-      printConfirmationInfo(
-        projectName,
-        sourceRepo,
-        sourceBranch,
-        commitHash,
-        targetBranch
-      );
-
-      // Create a temporary branch - 'temp-${sourceBranch}'
-      createBranch(`temp-${sourceBranch}`, `${projectName}/${sourceBranch}`);
-
-      // ToDo 以下部分需要抽离出来
-      // Check whether the target branch already exists in the current project.
-      // If so, switch to the target branch and execute cherry - pick.Otherwise, create a new branch and execute cherry - pick.
-      if (branchExists(targetBranch)) {
-        console.log(
-          `The target branch already exists, switch to the target branch - "${targetBranch}"...`
-        );
-        execSync(`git checkout ${targetBranch}`);
-        console.log();
-      } else {
-        console.log(
-          `Target branch does not exist, create and switch to the target branch - "${targetBranch}"...`
-        );
-        // Create a target branch and associate it with a remote branch
-        execSync(`git checkout -b ${targetBranch}`);
-        execSync(`git push -u origin ${targetBranch}`);
-        console.log();
-      }
-
-      // Execute cherry pick
-      cherryPickAndHandleConflicts(commitHash)
-        .then(async () => {
-          // If there is no conflict, prompt the user whether to push
-          const confirm = await inquirer.prompt([
-            {
-              type: "confirm",
-              name: "pushChanges",
-              message:
-                "Do you want to push the changes to the remote repository?",
-            },
-          ]);
-
-          console.log("Waiting push...");
-          if (confirm.pushChanges) {
-            execSync(
-              `git push -f origin temp-${sourceBranch}:${targetBranch}`,
-              {
-                stdio: "inherit",
-              }
-            );
-            console.log(chalk.green("Changes successfully pushed."));
-          } else {
-            console.log(chalk.yellow("Merge completed but not pushed."));
-          }
-        })
-        .catch((error) => {
-          console.error(
-            chalk.red(
-              `Cherry-pick failed. Resolve the conflicts and perform the merge manually. ${error}`
-            )
-          );
-        });
-    } catch (error) {
-      return;
-    }
-  } catch (error) {
-    if (error.isTtyError) {
-      console.error(
-        chalk.red("Prompt couldn’t be rendered in the current environment.")
-      );
     } else {
-      process.exit(1);
+      console.log(
+        `Target branch does not exist, create and switch to the target branch - "${targetBranch}"...`
+      );
+      // Create a target branch and associate it with a remote branch
+      execSync(`git checkout -b ${targetBranch}`);
+      execSync(`git push -u origin ${targetBranch}`);
+      console.log();
     }
+
+    // Execute cherry pick
+    cherryPickAndHandleConflicts(commitHash)
+      .then(async () => {
+        // If there is no conflict, prompt the user whether to push
+        const confirm = await inquirer.prompt([
+          {
+            type: "confirm",
+            name: "pushChanges",
+            message:
+              "Do you want to push the changes to the remote repository?",
+          },
+        ]);
+
+        console.log("Waiting push...");
+        if (confirm.pushChanges) {
+          execSync(`git push -f origin temp-${sourceBranch}:${targetBranch}`, {
+            stdio: "inherit",
+          });
+          console.log(chalk.green("Changes successfully pushed."));
+        } else {
+          console.log(chalk.yellow("Merge completed but not pushed."));
+        }
+      })
+      .catch((error) => {
+        console.error(
+          chalk.red(
+            `Cherry-pick failed. Resolve the conflicts and perform the merge manually. ${error}`
+          )
+        );
+      });
+  } catch (error) {
+    console.error(chalk.red(error.message));
     process.exit(1);
   }
+  // } catch (error) {
+  //   if (error.isTtyError) {
+  //     console.error(
+  //       chalk.red("Prompt couldn’t be rendered in the current environment.")
+  //     );
+  //   } else {
+  //     process.exit(1);
+  //   }
+  //   process.exit(1);
+  // }
 }
 
 // Run the main function
