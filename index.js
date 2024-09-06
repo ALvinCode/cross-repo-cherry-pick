@@ -20,15 +20,13 @@ async function getUserCustomRepositories() {
     const { inputRepoUrl } = await inquirer.prompt([
       {
         type: "input",
-        name: "newSourceRepo",
+        name: "inputRepoUrl",
         message: "Enter the source repository URL:",
         validate: (input) =>
           input ? true : "Source repository URL is required.",
       },
     ]);
 
-    // ToDo 这里没有等待用户输入答案
-    console.log("inputRepoUrl", inputRepoUrl);
     if (checkRemoteExists(inputRepoUrl)) {
       // The library entered by the user already exists
       const { useRemote } = await inquirer.prompt([
@@ -67,7 +65,13 @@ async function getUserCustomRepositories() {
   }
 }
 
-// 是否使用最近添加的远程存储库
+/**
+ * Get the specified remote repository
+ * Contains the most recently used remote repository quick selection and specifying a new repository
+ * @param {*} lastRemoteName
+ * @param {*} lastRemoteUrl
+ * @returns {usingRemoteUrl, usingRemoteName}
+ */
 async function getRepositories(lastRemoteName, lastRemoteUrl) {
   try {
     let usingRemoteUrl;
@@ -104,46 +108,23 @@ async function getRepositories(lastRemoteName, lastRemoteUrl) {
 }
 
 /**
- * List of all connected repositories
- * Only the repository represented by fetch is retained to prompt the user and simplify the display
- * '!i.includes("origin:")' is used to filter out the local repository
- * */
-function formatConnectedWarehouse(remoteArray) {
-  try {
-    let connectedWaarehouse = [];
-    try {
-      connectedWaarehouse = remoteArray
-        .map((line) => line.replace("\t", ": "))
-        .filter((i) => i.includes("(fetch)") && !i.includes("origin:"));
-    } catch (error) {
-      connectedWaarehouse = remoteArray;
-    }
-    console.log("Connected warehouse", connectedWaarehouse);
-  } catch (error) {
-    console.log("Connected warehouse", []);
-  }
-}
-
-// Get the last remote repository added
+ * Get the last remote repository added
+ * @returns {lastRemoteName, lastRemoteUrl}
+ */
 function getLastRemote() {
   const defaultRemoteInfo = { lastRemoteName: null, lastRemoteUrl: null };
   try {
-    const remotes = execSync("git remote -v").toString().trim();
-    const remoteArray = remotes.split("\n");
+    const remotes = getRemoteList();
+
     // Print the associated remote repositories;
-    formatConnectedWarehouse(remoteArray);
+    console.log("Connected warehouse", remotes);
 
     // Check if there is a remote repository
-    if (remoteArray.length === 0) return defaultRemoteInfo;
+    if (remotes.length === 0) return defaultRemoteInfo;
 
-    // Get the first remote repository containing `(fetch)`
-    const firstFetchRemote = remoteArray.find((line) =>
-      line.includes("(fetch)")
-    );
-
-    if (firstFetchRemote) {
-      const [remoteName, remoteUrl] = firstFetchRemote.split("\t");
-      const name = remoteName.split("/").pop();
+    if (remotes) {
+      const [remoteName, remoteUrl] = remotes[0].split(" : ");
+      const name = remoteName.split("/").slice(-1)[0];
       const url = remoteUrl.split(" ")[0];
       return { lastRemoteName: name, lastRemoteUrl: url };
     }
@@ -154,19 +135,20 @@ function getLastRemote() {
   }
 }
 
-// Get the project name from the repository URL
+/**
+ * Get the project name from the repository URL
+ * @param {*} url
+ * @returns {string} - Project name
+ */
 function getRepoNameFromUrl(url) {
   try {
     const regex =
       /^(?:https?:\/\/|git@)(?:[^/:]+)[/:]([^/]+\/[^/.]+)(?:\.git)?$/i;
     const match = url.match(regex);
-    console.log("match", match);
-    // todo 解决这里的报错问题
     if (match) {
       // Extract the last path segment as the project name
       const repoPath = match[1];
       const repoName = repoPath.split("/").pop();
-      console.log("repoName", repoName);
       return repoName;
     } else {
       console.log(
@@ -176,14 +158,18 @@ function getRepoNameFromUrl(url) {
     }
   } catch (error) {
     console.log(
-      "An error occurred while parsing the project name, so the default name is used: source-repo"
+      "Error to resolve project name, using default name: source-repo"
     );
     return "source-repo";
   }
 }
 
-// Check branch exists
-function branchExists(branchName) {
+/**
+ * Check branch exists
+ * @param {*} branchName
+ * @returns {boolean} - Whether the branch exists
+ */
+function handleBranchExists(branchName) {
   console.log(
     chalk.yellowBright(`Checking if target branch "${branchName}" exists...`)
   );
@@ -198,8 +184,11 @@ function branchExists(branchName) {
   }
 }
 
-// Delete branch
-function deleteBranch(branchName) {
+/**
+ * Delete branch
+ * @param {*} branchName
+ */
+function handleDeleteBranch(branchName) {
   try {
     execSync(`git branch -D ${branchName}`, { stdio: "ignore" });
     console.log(
@@ -215,20 +204,22 @@ function deleteBranch(branchName) {
   }
 }
 
-// Check and work on existing branches before creating new ones
-function createBranch(branchName, sourceBranch) {
+/**
+ * Check and work on existing branches before creating new ones
+ * @param {*} branchName
+ * @param {*} sourceBranch
+ */
+function createTemporaryBranch(branchName, sourceBranch) {
   try {
-    if (branchExists(branchName)) {
-      deleteBranch(branchName);
+    if (handleBranchExists(branchName)) {
+      handleDeleteBranch(branchName);
       console.log();
     }
 
     // Create a new branch
     execSync(`git checkout -b ${branchName} ${sourceBranch}`);
     console.log(
-      chalk.greenBright(
-        `Create and switch to a new temporary branch - "${branchName}".`
-      )
+      `Create and switch to a new temporary branch - "${branchName}".`
     );
     console.log();
   } catch (error) {
@@ -238,6 +229,30 @@ function createBranch(branchName, sourceBranch) {
       )
     );
     process.exit(1);
+  }
+}
+
+/**
+ * Switch to the target branch.
+ * Check whether the target branch already exists in the current project.
+ * If so, switch to the target branch and execute cherry - pick.Otherwise, create a new branch and execute cherry - pick.
+ * @param {*} targetBranch
+ */
+function switchTargetBranch(targetBranch) {
+  if (handleBranchExists(targetBranch)) {
+    console.log(
+      `The target branch already exists, switch to the target branch - "${targetBranch}"...`
+    );
+    execSync(`git checkout ${targetBranch}`);
+    console.log();
+  } else {
+    console.log(
+      `Target branch does not exist, create and switch to the target branch - "${targetBranch}"...`
+    );
+    // Create a target branch and associate it with a remote branch
+    execSync(`git checkout -b ${targetBranch}`);
+    execSync(`git push -u origin ${targetBranch}`);
+    console.log();
   }
 }
 
@@ -280,30 +295,67 @@ function cherryPickAndHandleConflicts(commitHash) {
  * @param {string} url - Enter the repository URL
  * @returns {string} - Standardized URLs
  */
+// TODO Support 'Bitbucket', 'Coding.net' and 'Gitee' repository URLs
 function normalizeUrl(url) {
-  const sshPattern = /^git@([^:]+):([^/]+)\/(.+)\.git$/;
-  const httpsPattern = /^https?:\/\/([^/]+)\/([^/]+)\/(.+)\.git$/;
+  try {
+    const sshPattern = /^git@([^:]+):([^/]+)\/(.+)\.git$/;
+    const httpsPattern = /^https?:\/\/([^/]+)\/([^/]+)\/(.+)\.git$/;
 
-  if (sshPattern.test(url)) {
-    // If it is an SSH format URL (such as git@gitlab.com:user/repo.git)
-    const [, host, user, repo] = RegExp(sshPattern).exec(url);
-    return `https://${host}/${user}/${repo}.git`;
-  } else if (httpsPattern.test(url)) {
-    // If it is an HTTPS URL (such as https://gitlab.com/user/repo.git)
-    const [, host, user, repo] = RegExp(httpsPattern).exec(url);
-    return `https://${host}/${user}/${repo}.git`;
-  } else {
-    throw new Error("Invalid URL format");
+    if (sshPattern.test(url)) {
+      // If it is an SSH format URL (such as git@gitlab.com:user/repo.git)
+      const [, host, user, repo] = RegExp(sshPattern).exec(url);
+      return `https://${host}/${user}/${repo}.git`;
+    } else if (httpsPattern.test(url)) {
+      // If it is an HTTPS URL (such as https://gitlab.com/user/repo.git)
+      const [, host, user, repo] = RegExp(httpsPattern).exec(url);
+      return `https://${host}/${user}/${repo}.git`;
+    } else {
+      throw new Error(
+        "The URL does not conform to the specified format. Please check and try again."
+      );
+    }
+  } catch (error) {
+    console.error(chalk.red(`Error standardizing URL: ${error.message}`));
+    process.exit(1);
   }
 }
 
-// Check whether the remote repository to be associated already exists
+/**
+ * Get a list of all connected remote repositories
+ * @returns {string} - List of all connected remote repositories
+ * Note: The returned results exclude push type, undefined, and the user's own remote repository
+ * @example retirn ['xxx-xxx-xxx: git@repo.xxx.net:xxx/xxx.git (fetch)']
+ */
+function getRemoteList() {
+  try {
+    const remoteList = execSync("git remote -v", { encoding: "utf-8" })
+      .toString()
+      .trim()
+      .split("\n")
+      .map((r) => r.replace("\t", " : "))
+      .filter(
+        (i) =>
+          i.includes("(fetch)") &&
+          !i.includes("undefined") &&
+          !i.includes("origin:")
+      );
+    return remoteList;
+  } catch (error) {
+    console.error(chalk.red(error.message));
+    process.exit(1);
+  }
+}
+
+/**
+ * Check whether the remote repository to be associated already exists
+ * @param {string} remoteRepo
+ * @returns {boolean} - Whether the remote repository exists
+ */
 function checkRemoteExists(remoteRepo) {
   try {
     // Get a list of all connected remote repositories
-    const remotes = execSync("git remote -v", { encoding: "utf-8" })
-      .split("\n")
-      .map((line) => line.split("\t")[1]) // Get URL Part
+    const remotes = getRemoteList()
+      .map((line) => line.split(" : ")[1]) // Get URL Part
       .filter(Boolean) // Filter out empty lines
       .map((line) => line.split(" ")[0]) // Filter out the fetch/push part
       .filter(Boolean) // Filter out empty lines
@@ -313,20 +365,28 @@ function checkRemoteExists(remoteRepo) {
     const normalizedInputUrl = normalizeUrl(remoteRepo);
     return remotes.includes(normalizedInputUrl);
   } catch (error) {
-    console.error("Error:", error.message);
-    return false;
+    console.error(chalk.red(error.message));
+    process.exit(1);
   }
 }
 
-// Get the commit record of the remote branch
+/**
+ * Get the commit record of the remote branch
+ * @param {string} remoteName
+ * @param {string} branch
+ * @returns {Promise} - Promise object represents the commit record
+ */
 function getCommits(remoteName, branch) {
   return new Promise((resolve, reject) => {
     exec(
       `git fetch ${remoteName} ${branch} && git log ${remoteName}/${branch} --pretty=format:"%ad %an > %s - %h" --date=format:'%Y-%m-%d %H:%M:%S'`,
       (error, stdout) => {
         if (error) {
-          reject(`Error fetching commits: ${error.message}`);
-          return;
+          reject(
+            new Error(
+              `Pulling commits from branch "${branch}" failed. Please check the branch.`
+            )
+          );
         }
 
         // Parse git log output and decompose it into an array of commit record objects
@@ -346,6 +406,10 @@ function getCommits(remoteName, branch) {
   });
 }
 
+/**
+ * Interaction Question Mapping
+ * @type {Object}
+ */
 const questions = {
   question1: async () => {
     const { sourceBranch } = await inquirer.prompt([
@@ -365,7 +429,7 @@ const questions = {
         {
           type: "list",
           name: "selectedCommit",
-          message: `Please select a commit record (${sourceBranch} branch):`,
+          message: `Please select a commit record to perform cherry-pick (branch: ${sourceBranch}):`,
           choices: commits,
           loop: false,
           pageSize: 10,
@@ -386,11 +450,18 @@ const questions = {
         validate: (input) => (input ? true : "Target branch name is required."),
       },
     ]);
-    console.log("targetBranch", targetBranch);
     return targetBranch ? targetBranch.trim() : "";
   },
 };
 
+/**
+ * Print confirmation information
+ * @param {*} repoName
+ * @param {*} sourceRepo
+ * @param {*} sourceBranch
+ * @param {*} commitHash
+ * @param {*} targetBranch
+ */
 function printConfirmationInfo(
   repoName,
   sourceRepo,
@@ -430,19 +501,21 @@ function printConfirmationInfo(
   console.log();
 }
 
-// Prompt user for input
+// Main Process
 async function main() {
-  // try {
-  // Confirm the associated warehouse information
+  // [Preparation]
+  // 1. Confirm the associated warehouse information
   const { lastRemoteName, lastRemoteUrl } = getLastRemote();
 
-  // Confirm the source repository and whether to use the most recently added remote repository
+  // 2. Confirm the source repository and whether to use the most recently added remote repository
   const { usingRemoteUrl, usingRemoteName } = await getRepositories(
     lastRemoteName,
     lastRemoteUrl
   );
 
+  // [Interaction process]
   try {
+    // Get interactive results
     const sourceBranch = await questions.question1();
     const selectedCommit = await questions.question2(
       usingRemoteName,
@@ -460,34 +533,21 @@ async function main() {
       targetBranch
     );
 
-    // pull remote warehouse
+    // Pull the remote warehouse information specified by the user
     console.log(chalk.greenBright("Fetching from source repository..."));
     execSync(`git fetch ${usingRemoteName} ${sourceBranch}`);
     console.log();
 
     // Create a temporary branch - 'temp-${sourceBranch}'
-    createBranch(`temp-${sourceBranch}`, `${usingRemoteName}/${sourceBranch}`);
+    createTemporaryBranch(
+      `temp-${sourceBranch}`,
+      `${usingRemoteName}/${sourceBranch}`
+    );
 
-    // ToDo 以下部分需要抽离出来
-    // Check whether the target branch already exists in the current project.
-    // If so, switch to the target branch and execute cherry - pick.Otherwise, create a new branch and execute cherry - pick.
-    if (branchExists(targetBranch)) {
-      console.log(
-        `The target branch already exists, switch to the target branch - "${targetBranch}"...`
-      );
-      execSync(`git checkout ${targetBranch}`);
-      console.log();
-    } else {
-      console.log(
-        `Target branch does not exist, create and switch to the target branch - "${targetBranch}"...`
-      );
-      // Create a target branch and associate it with a remote branch
-      execSync(`git checkout -b ${targetBranch}`);
-      execSync(`git push -u origin ${targetBranch}`);
-      console.log();
-    }
+    // Create/switch to a user-specified target branch
+    switchTargetBranch(targetBranch);
 
-    // Execute cherry pick
+    // Execute 'cherry-pick' and handle conflicts
     cherryPickAndHandleConflicts(commitHash)
       .then(async () => {
         // If there is no conflict, prompt the user whether to push
@@ -521,17 +581,6 @@ async function main() {
     console.error(chalk.red(error.message));
     process.exit(1);
   }
-  // } catch (error) {
-  //   if (error.isTtyError) {
-  //     console.error(
-  //       chalk.red("Prompt couldn’t be rendered in the current environment.")
-  //     );
-  //   } else {
-  //     process.exit(1);
-  //   }
-  //   process.exit(1);
-  // }
 }
 
-// Run the main function
 main();
