@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import path from "path";
-import dts from "vite-plugin-dts"; // 生成 TypeScript 类型声明文件
 
 export default defineConfig({
   build: {
@@ -23,9 +22,4 @@ export default defineConfig({
     },
     minify: "terser",
   },
-  plugins: [
-    dts({
-      insertTypesEntry: true, // 在 package.json 中插入类型声明文件的条目
-    }),
-  ],
 });
