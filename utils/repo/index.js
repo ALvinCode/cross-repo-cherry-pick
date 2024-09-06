@@ -60,8 +60,6 @@ async function getUserCustomRepositories() {
         },
       ]);
       if (useRemote) {
-        console.log(chalk.blue("Using existing remote repository"));
-        // todo inputRepoUrl是否需要格式化？
         sourceRepoUrl = inputRepoUrl;
       } else {
         // If you do not use an existing remote repository, re-enter
