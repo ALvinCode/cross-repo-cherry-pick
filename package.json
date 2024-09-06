@@ -8,11 +8,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "chmod +x ./index.js",
+    "prepublishOnly": "chmod +x .src/index.js",
     "build": "vite build"
   },
   "bin": {
-    "crcp": "./index.js"
+    "crcp": "dist/crcp.cjs.js"
   },
   "keywords": [],
   "author": "Kuo.Zheng",
