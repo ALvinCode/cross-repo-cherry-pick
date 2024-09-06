@@ -6,19 +6,19 @@ import chalk from "chalk";
  * @param {string} url - Enter the repository URL
  * @returns {string} - Standardized URLs
  */
-// TODO Support 'Bitbucket', 'Coding.net' and 'Gitee' repository URLs
 function normalizeUrl(url) {
   try {
     const sshPattern = /^git@([^:]+):([^/]+)\/(.+)\.git$/;
     const httpsPattern = /^https?:\/\/([^/]+)\/([^/]+)\/(.+)\.git$/;
 
-    if (sshPattern.test(url)) {
+    let matchResult;
+    if ((matchResult = url.match(sshPattern))) {
       // If it is an SSH format URL (such as git@gitlab.com:user/repo.git)
-      const [, host, user, repo] = RegExp(sshPattern).exec(url);
+      const [, host, user, repo] = matchResult;
       return `https://${host}/${user}/${repo}.git`;
-    } else if (httpsPattern.test(url)) {
+    } else if ((matchResult = url.match(httpsPattern))) {
       // If it is an HTTPS URL (such as https://gitlab.com/user/repo.git)
-      const [, host, user, repo] = RegExp(httpsPattern).exec(url);
+      const [, host, user, repo] = matchResult;
       return `https://${host}/${user}/${repo}.git`;
     } else {
       throw new Error(
