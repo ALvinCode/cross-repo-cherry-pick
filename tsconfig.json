@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "target": "esnext", // 构建目标
+    "module": "esnext", // 模块系统
+    "declaration": true, // 生成类型声明文件
+    "outDir": "./dist", // 输出目录
+    "strict": true, // 启用所有严格类型检查选项
+    "moduleResolution": "node", // 模块解析策略
+    "esModuleInterop": true // 允许默认导入非 ES6 模块
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"]
+}

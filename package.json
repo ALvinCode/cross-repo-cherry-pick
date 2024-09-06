@@ -2,11 +2,14 @@
   "name": "cross-repo-cherry-pick",
   "version": "1.0.3",
   "description": "Perform cherry-pick operations between projects to reduce duplication of work when developing the same module for projects with only partial differences. This allows multiple projects to be maintained independently and synchronized.",
-  "main": "index.js",
-  "type": "module",
+  "main": "dist/crcp.cjs.js",
+  "module": "dist/crcp.es.js",
+  "unpkg": "dist/crcp.umd.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "chmod +x ./index.js"
+    "prepublishOnly": "chmod +x ./index.js",
+    "build": "vite build"
   },
   "bin": {
     "crcp": "./index.js"
@@ -17,5 +20,10 @@
   "dependencies": {
     "chalk": "^5.3.0",
     "inquirer": "^10.1.8"
+  },
+  "devDependencies": {
+    "terser": "^5.31.6",
+    "vite": "^5.4.3",
+    "vite-plugin-dts": "^4.1.0"
   }
 }
