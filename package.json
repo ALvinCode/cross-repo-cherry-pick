@@ -8,7 +8,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "chmod +x .src/index.js",
+    "prepublishOnly": "npm run build && chmod +x dist/crcp.cjs.js",
     "build": "vite build"
   },
   "bin": {
