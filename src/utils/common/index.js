@@ -148,4 +148,4 @@ function loadConfigFile(configFilePath) {
   }
 }
 
-export { normalizeUrl, getCommits, printConfirmationInfo };
+export { normalizeUrl, getCommits, printConfirmationInfo, loadConfigFile };

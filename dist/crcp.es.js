@@ -79,6 +79,29 @@ function printConfirmationInfo(repoName, sourceRepo, sourceBranch, commitHash, t
   });
   console.log();
 }
+function loadConfigFile(configFilePath) {
+  try {
+    if (!fs.existsSync(configFilePath)) {
+      console.log(
+        chalk.red(`Configuration file ${configFilePath} does not exist.`)
+      );
+      return null;
+    }
+    const configContent = fs.readFileSync(configFilePath, "utf-8");
+    const config = JSON.parse(configContent);
+    console.log(chalk.green("Successfully loaded the configuration file: "));
+    console.log(config);
+    return config;
+  } catch (error) {
+    console.error(
+      chalk.red(
+        "An error occurred while reading or parsing the configuration file: "
+      ),
+      error
+    );
+    return null;
+  }
+}
 const questions = {
   question1: async () => {
     const { sourceBranch } = await inquirer.prompt([
@@ -122,7 +145,7 @@ const questions = {
     return targetBranch ? targetBranch.trim() : "";
   }
 };
-function getRepoNameFromUrl(url) {
+function getRepoNameFromUrl$1(url) {
   try {
     const regex = /^(?:https?:\/\/|git@)(?:[^/:]+)[/:]([^/]+\/[^/.]+)(?:\.git)?$/i;
     const match = url.match(regex);
@@ -171,7 +194,7 @@ async function getUserCustomRepositories() {
     } else {
       try {
         console.log(chalk.greenBright("Adding from source repository..."));
-        const repoName = getRepoNameFromUrl(inputRepoUrl);
+        const repoName = getRepoNameFromUrl$1(inputRepoUrl);
         execSync(`git remote add ${repoName} ${inputRepoUrl}`, {
           stdio: "ignore"
         });
@@ -189,8 +212,8 @@ async function getUserCustomRepositories() {
 }
 async function getRepositories(lastRemoteName, lastRemoteUrl) {
   try {
-    let usingRemoteUrl;
-    let usingRemoteName;
+    let remoteUrl;
+    let remoteName;
     if (typeof lastRemoteName === "string" && lastRemoteName !== "undefined" && lastRemoteName !== "null" && lastRemoteName) {
       const { useExistingRemote } = await inquirer.prompt([
         {
@@ -201,15 +224,15 @@ async function getRepositories(lastRemoteName, lastRemoteUrl) {
         }
       ]);
       if (useExistingRemote) {
-        usingRemoteUrl = lastRemoteUrl;
+        remoteUrl = lastRemoteUrl;
       } else {
-        usingRemoteUrl = await getUserCustomRepositories();
+        remoteUrl = await getUserCustomRepositories();
       }
     } else {
-      usingRemoteUrl = await getUserCustomRepositories();
+      remoteUrl = await getUserCustomRepositories();
     }
-    usingRemoteName = getRepoNameFromUrl(usingRemoteUrl);
-    return { usingRemoteUrl, usingRemoteName };
+    remoteName = getRepoNameFromUrl$1(remoteUrl);
+    return { remoteUrl, remoteName };
   } catch (error) {
     console.error(chalk.red(error.message));
     process.exit(1);
@@ -351,19 +374,64 @@ function cherryPickAndHandleConflicts(commitHash) {
   });
 }
 async function main() {
-  const { lastRemoteName, lastRemoteUrl } = getLastRemote();
-  const { usingRemoteUrl, usingRemoteName } = await getRepositories(
-    lastRemoteName,
-    lastRemoteUrl
-  );
   try {
-    const sourceBranch = await questions.question1();
-    const selectedCommit = await questions.question2(
-      usingRemoteName,
-      sourceBranch
-    );
-    const commitHash = selectedCommit;
-    const targetBranch = await questions.questions3();
+    let usingRemoteName, usingRemoteUrl, sourceBranch, commitHash, targetBranch;
+    const configFilePath = path.resolve(process.cwd(), ".crcpconfig.json");
+    const config = loadConfigFile(configFilePath);
+    if (config) {
+      if (!config.sourceRepoUrl) {
+        console.error(
+          chalk.red(
+            "The source repository URL is missing in the configuration file."
+          )
+        );
+        process.exit(1);
+      }
+      if (!config.targetBranch) {
+        console.error(
+          chalk.red("The target branch is missing in the configuration file.")
+        );
+        process.exit(1);
+      }
+      if (!config.sourceBranch) {
+        console.error(
+          chalk.red("The source branch is missing in the configuration file.")
+        );
+        process.exit(1);
+      }
+      if (!config.commitHash) {
+        console.error(
+          chalk.red("The commit hash is missing in the configuration file.")
+        );
+        process.exit(1);
+      }
+      const {
+        sourceRepoUrl,
+        sourceBranch: srBranch,
+        commitHash: srCommitHash,
+        targetBranch: trBranch
+      } = config;
+      usingRemoteName = getRepoNameFromUrl(sourceRepoUrl);
+      usingRemoteUrl = sourceRepoUrl;
+      sourceBranch = srBranch;
+      commitHash = srCommitHash;
+      targetBranch = trBranch;
+    } else {
+      const { lastRemoteName, lastRemoteUrl } = getLastRemote();
+      const { remoteUrl, remoteName } = await getRepositories(
+        lastRemoteName,
+        lastRemoteUrl
+      );
+      usingRemoteName = remoteName;
+      usingRemoteUrl = remoteUrl;
+      sourceBranch = await questions.question1();
+      const selectedCommit = await questions.question2(
+        usingRemoteName,
+        sourceBranch
+      );
+      commitHash = selectedCommit;
+      targetBranch = await questions.questions3();
+    }
     printConfirmationInfo(
       usingRemoteName,
       usingRemoteUrl,
