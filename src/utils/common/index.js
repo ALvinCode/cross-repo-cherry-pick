@@ -114,4 +114,38 @@ function printConfirmationInfo(
   console.log();
 }
 
+/**
+ * Load configuration file
+ * @param {*} configFilePath
+ * @returns
+ */
+function loadConfigFile(configFilePath) {
+  try {
+    // Check if the configuration file exists
+    if (!fs.existsSync(configFilePath)) {
+      console.log(
+        chalk.red(`Configuration file ${configFilePath} does not exist.`)
+      );
+      return null;
+    }
+
+    // Read the configuration file contents
+    const configContent = fs.readFileSync(configFilePath, "utf-8");
+
+    // Parsing configuration file contents
+    const config = JSON.parse(configContent);
+    console.log(chalk.green("Successfully loaded the configuration file: "));
+    console.log(config);
+    return config;
+  } catch (error) {
+    console.error(
+      chalk.red(
+        "An error occurred while reading or parsing the configuration file: "
+      ),
+      error
+    );
+    return null;
+  }
+}
+
 export { normalizeUrl, getCommits, printConfirmationInfo };

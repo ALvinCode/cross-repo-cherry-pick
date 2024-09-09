@@ -59,36 +59,85 @@ function cherryPickAndHandleConflicts(commitHash) {
 
 // Main Process
 async function main() {
-  // [Preparation]
-  // 1. Confirm the associated warehouse information
-  const { lastRemoteName, lastRemoteUrl } = getLastRemote();
+  let usingRemoteName, usingRemoteUrl, sourceBranch, commitHash, targetBranch;
+  // Configuration file mode judgment
+  // 假设配置文件存放在项目的根目录
+  const configFilePath = path.resolve(process.cwd(), ".crcpconfig.json");
 
-  // 2. Confirm the source repository and whether to use the most recently added remote repository
-  const { usingRemoteUrl, usingRemoteName } = await getRepositories(
-    lastRemoteName,
-    lastRemoteUrl
-  );
+  // 读取配置文件
+  const config = loadConfigFile(configFilePath);
 
-  // [Interaction process]
-  try {
-    // Get interactive results
-    const sourceBranch = await questions.question1();
+  if (config) {
+    // 检查配置文件中的字段是否正确和完整
+    if (!config.sourceRepoUrl) {
+      console.error(
+        chalk.red(
+          "The source repository URL is missing in the configuration file."
+        )
+      );
+      process.exit(1);
+    }
+
+    if (!config.targetBranch) {
+      console.error(
+        chalk.red("The target branch is missing in the configuration file.")
+      );
+      process.exit(1);
+    }
+
+    if (!config.sourceBranch) {
+      console.error(
+        chalk.red("The source branch is missing in the configuration file.")
+      );
+      process.exit(1);
+    }
+
+    if (!config.commitHash) {
+      console.error(
+        chalk.red("The commit hash is missing in the configuration file.")
+      );
+      process.exit(1);
+    }
+
+    const { sourceRepoUrl, sourceBranch, commitHash, targetBranch } = config;
+    usingRemoteName = getRepoNameFromUrl(sourceRepoUrl);
+    usingRemoteUrl = sourceRepoUrl;
+    sourceBranch = sourceBranch;
+    commitHash = commitHash;
+    targetBranch = targetBranch;
+  } else {
+    // [Preparation]
+    // Confirm the associated warehouse information
+    const { lastRemoteName, lastRemoteUrl } = getLastRemote();
+
+    // Confirm the source repository and whether to use the most recently added remote repository
+    const { remoteUrl, remoteName } = await getRepositories(
+      lastRemoteName,
+      lastRemoteUrl
+    );
+    // Update global variables
+    usingRemoteName = remoteName;
+    usingRemoteUrl = remoteUrl;
+    sourceBranch = await questions.question1();
     const selectedCommit = await questions.question2(
       usingRemoteName,
       sourceBranch
     );
-    const commitHash = selectedCommit;
-    const targetBranch = await questions.questions3();
+    commitHash = selectedCommit;
+    targetBranch = await questions.questions3();
+  }
 
-    // Print confirmation information
-    printConfirmationInfo(
-      usingRemoteName,
-      usingRemoteUrl,
-      sourceBranch,
-      commitHash,
-      targetBranch
-    );
+  // Print confirmation information
+  printConfirmationInfo(
+    usingRemoteName,
+    usingRemoteUrl,
+    sourceBranch,
+    commitHash,
+    targetBranch
+  );
 
+  // [Interaction process]
+  try {
     // Pull the remote warehouse information specified by the user
     console.log(chalk.greenBright("Fetching from source repository..."));
     execSync(`git fetch ${usingRemoteName} ${sourceBranch}`);

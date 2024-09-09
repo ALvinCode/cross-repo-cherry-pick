@@ -90,12 +90,12 @@ async function getUserCustomRepositories() {
  * Contains the most recently used remote repository quick selection and specifying a new repository
  * @param {string} lastRemoteName
  * @param {string} lastRemoteUrl
- * @returns {usingRemoteUrl, usingRemoteName}
+ * @returns {remoteUrl, remoteName}
  */
 async function getRepositories(lastRemoteName, lastRemoteUrl) {
   try {
-    let usingRemoteUrl;
-    let usingRemoteName;
+    let remoteUrl;
+    let remoteName;
     if (
       typeof lastRemoteName === "string" &&
       lastRemoteName !== "undefined" &&
@@ -112,15 +112,15 @@ async function getRepositories(lastRemoteName, lastRemoteUrl) {
       ]);
 
       if (useExistingRemote) {
-        usingRemoteUrl = lastRemoteUrl;
+        remoteUrl = lastRemoteUrl;
       } else {
-        usingRemoteUrl = await getUserCustomRepositories();
+        remoteUrl = await getUserCustomRepositories();
       }
     } else {
-      usingRemoteUrl = await getUserCustomRepositories();
+      remoteUrl = await getUserCustomRepositories();
     }
-    usingRemoteName = getRepoNameFromUrl(usingRemoteUrl);
-    return { usingRemoteUrl, usingRemoteName };
+    remoteName = getRepoNameFromUrl(remoteUrl);
+    return { remoteUrl, remoteName };
   } catch (error) {
     console.error(chalk.red(error.message));
     process.exit(1);
