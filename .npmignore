@@ -1,4 +1,21 @@
 node_modules/
+src/
+LICENSE
+README.md
+CHANGELOG.md
+
+# config
+vite.config.js
+.gitignore
+.eslintrc.js
+.prettierrc.js
+babel.config.js
+tsconfig.json
+jest.config.js
 .vscode
-package-lock.json
+.nvmrc
 .DS_Store
+
+# lock
+package-lock.json
+pnpm-lock.yaml

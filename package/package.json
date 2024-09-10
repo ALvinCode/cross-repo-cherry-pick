@@ -1,6 +1,6 @@
 {
   "name": "cross-repo-cherry-pick",
-  "version": "1.0.6-beta",
+  "version": "1.0.5",
   "description": "Perform cherry-pick operations between projects to reduce duplication of work when developing the same module for projects with only partial differences. This allows multiple projects to be maintained independently and synchronized.",
   "module": "./dist/crcp.js",
   "main": "./dist/crcp.umd.cjs",
@@ -20,7 +20,7 @@
     "build": "vite build"
   },
   "bin": {
-    "crcp": "./dist/crcp.js"
+    "crcp": "src/index.js"
   },
   "keywords": [],
   "author": "Kuo.Zheng",
