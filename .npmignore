@@ -1,9 +1,4 @@
 node_modules/
-preset/
-utils/
 .vscode
 package-lock.json
-package.json
-.gitignore
-README.md
 .DS_Store
