@@ -6,8 +6,7 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, "src/index.js"), // 入口文件
       name: "Crcp", // 库的全局变量名称
-      formats: ["es", "cjs", "umd"], // 输出的格式
-      fileName: (format) => `crcp.${format}.js`, // 输出文件的命名规则
+      fileName: "crcp", // 输出文件的命名规则
     },
     rollupOptions: {
       external: ["chalk", "child_process", "process", "inquirer"],
