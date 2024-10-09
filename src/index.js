@@ -3,6 +3,7 @@
 import { execSync, spawn } from "child_process";
 import inquirer from "inquirer";
 import chalk from "chalk";
+import path from "path";
 
 import { questions } from "./preset/questions.js";
 import { getRepositories, getLastRemote } from "./utils/repo/index.js";
@@ -129,6 +130,7 @@ async function main() {
         usingRemoteName,
         sourceBranch
       );
+      console.log("selectedCommit", selectedCommit);
       commitHash = selectedCommit;
       targetBranch = await questions.questions3();
     }

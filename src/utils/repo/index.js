@@ -67,7 +67,6 @@ async function getUserCustomRepositories() {
       }
     } else {
       try {
-        console.log(chalk.greenBright("Adding from source repository..."));
         const repoName = getRepoNameFromUrl(inputRepoUrl);
         execSync(`git remote add ${repoName} ${inputRepoUrl}`, {
           stdio: "ignore",
@@ -137,13 +136,15 @@ function getLastRemote() {
     const remotes = getRemoteList();
 
     // Print the associated remote repositories;
-    console.log("Connected warehouse", remotes);
+    if (Array.isArray(remotes) && remotes.length) {
+      console.log("Connected warehouse", remotes);
+    }
 
     // Check if there is a remote repository
     if (remotes.length === 0) return defaultRemoteInfo;
 
     if (remotes) {
-      const [remoteName, remoteUrl] = remotes[0].split(" : ");
+      const [remoteName, remoteUrl] = remotes[0].split(": ");
       const name = remoteName.split("/").slice(-1)[0];
       const url = remoteUrl.split(" ")[0];
       return { lastRemoteName: name, lastRemoteUrl: url };
@@ -164,7 +165,7 @@ function checkRemoteExists(remoteRepo) {
   try {
     // Get a list of all connected remote repositories
     const remotes = getRemoteList()
-      .map((line) => line.split(" : ")[1]) // Get URL Part
+      .map((line) => line.split(": ")[1]) // Get URL Part
       .filter(Boolean) // Filter out empty lines
       .map((line) => line.split(" ")[0]) // Filter out the fetch/push part
       .filter(Boolean) // Filter out empty lines
@@ -191,7 +192,7 @@ function getRemoteList() {
       .toString()
       .trim()
       .split("\n")
-      .map((r) => r.replace("\t", " : "))
+      .map((r) => r.replace("\t", ": "))
       .filter(
         (i) =>
           i.includes("(fetch)") &&

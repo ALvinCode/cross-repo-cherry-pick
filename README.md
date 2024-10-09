@@ -18,6 +18,8 @@ npm install -g cross-repo-cherry-pick
 
 # Usage
 
+提示：source-repo请尽量使用ssh协议，以避免输入密码。
+
 基本命令
 
 ```bash
@@ -27,7 +29,7 @@ crcp <source-repo> <source-branch> <commit-hash> <target-repo> <target-branch>
 示例
 
 ```bash
-crcp https://github.com/user/source-repo.git main abc123 https://github.com/user/target-repo.git develop
+crcp git@github.com/user/source-repo.git main abc123 git@github.com/user/target-repo.git develop
 ```
 
 # 配置
@@ -36,9 +38,9 @@ crcp https://github.com/user/source-repo.git main abc123 https://github.com/user
   
 ```json
 {
-  "sourceRepo": "https://github.com/user/source-repo.git",
+  "sourceRepo": "git@github.com/user/source-repo.git",
   "sourceBranch": "main",
-  "targetRepo": "https://github.com/user/target-repo.git",
+  "targetRepo": "git@github.com/user/target-repo.git",
   "targetBranch": "develop"
 }
 ```

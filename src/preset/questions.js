@@ -20,7 +20,10 @@ const questions = {
   },
   question2: async (repoName, sourceBranch) => {
     try {
+      console.log("repoName", repoName);
+      console.log("sourceBranch", sourceBranch);
       const commits = await getCommits(repoName, sourceBranch);
+      console.log('commits', commits);
       const { selectedCommit } = await inquirer.prompt([
         {
           type: "list",
