@@ -13,6 +13,7 @@ import {
 } from "./utils/branch/index.js";
 
 import { printConfirmationInfo, loadConfigFile } from "./utils/common/index.js";
+import { getRepoNameFromUrl } from "./utils/repo/index.js";
 
 // Handle Ctrl + C (SIGINT) gracefully
 process.on("SIGINT", () => {

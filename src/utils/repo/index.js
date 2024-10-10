@@ -206,4 +206,4 @@ function getRemoteList() {
   }
 }
 
-export { getRepositories, getLastRemote };
+export { getRepositories, getLastRemote, getRepoNameFromUrl };
