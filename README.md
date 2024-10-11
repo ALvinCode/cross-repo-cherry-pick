@@ -23,7 +23,7 @@ npm install -g cross-repo-cherry-pick
 基本命令
 
 ```bash
-crcp <source-repo> <source-branch> <commit-hash> <target-repo> <target-branch>
+crcp <source-repo> <source-branch> <commit-hash> <target-branch>
 ```
 
 示例

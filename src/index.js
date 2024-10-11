@@ -3,7 +3,6 @@
 import { execSync, spawn } from "child_process";
 import inquirer from "inquirer";
 import chalk from "chalk";
-import path from "path";
 
 import { questions } from "./preset/questions.js";
 import { getRepositories, getLastRemote } from "./utils/repo/index.js";
@@ -12,8 +11,9 @@ import {
   switchTargetBranch,
 } from "./utils/branch/index.js";
 
-import { printConfirmationInfo, loadConfigFile } from "./utils/common/index.js";
-import { getRepoNameFromUrl } from "./utils/repo/index.js";
+import { printConfirmationInfo } from "./utils/common/index.js";
+import { configCheck } from "./services/config.js";
+import { argsCheck } from "./services/args.js";
 
 // Handle Ctrl + C (SIGINT) gracefully
 process.on("SIGINT", () => {
@@ -62,62 +62,27 @@ function cherryPickAndHandleConflicts(commitHash) {
 // Main Process
 async function main() {
   try {
-    let usingRemoteName, usingRemoteUrl, sourceBranch, commitHash, targetBranch;
-    // Configuration file mode judgment
-    // 假设配置文件存放在项目的根目录
-    const configFilePath = path.resolve(process.cwd(), ".crcpconfig.json");
+    let cherryConfig = {
+      usingRemoteName: "",
+      usingRemoteUrl: "",
+      sourceBranch: "",
+      commitHash: "",
+      targetBranch: "",
+      isInitialized: false,
+    };
+    let isInitialized = false;
 
-    // 读取配置文件
-    const config = loadConfigFile(configFilePath);
+    // check crcpconfig file
+    configCheck(cherryConfig);
+    // check command line arguments
+    argsCheck(cherryConfig);
 
-    if (config) {
-      // 检查配置文件中的字段是否正确和完整
-      if (!config.sourceRepoUrl) {
-        console.error(
-          chalk.red(
-            "The source repository URL is missing in the configuration file."
-          )
-        );
-        process.exit(1);
-      }
+    console.table(cherryConfig);
+    console.log("isInitialized", cherryConfig.isInitialized);
 
-      if (!config.targetBranch) {
-        console.error(
-          chalk.red("The target branch is missing in the configuration file.")
-        );
-        process.exit(1);
-      }
-
-      if (!config.sourceBranch) {
-        console.error(
-          chalk.red("The source branch is missing in the configuration file.")
-        );
-        process.exit(1);
-      }
-
-      if (!config.commitHash) {
-        console.error(
-          chalk.red("The commit hash is missing in the configuration file.")
-        );
-        process.exit(1);
-      }
-
-      const {
-        sourceRepoUrl,
-        sourceBranch: srBranch,
-        commitHash: srCommitHash,
-        targetBranch: trBranch,
-      } = config;
-      usingRemoteName = getRepoNameFromUrl(sourceRepoUrl);
-      usingRemoteUrl = sourceRepoUrl;
-      sourceBranch = srBranch;
-      commitHash = srCommitHash;
-      targetBranch = trBranch;
-    } else {
-      // [Preparation]
-      // Confirm the associated warehouse information
+    // Using interactive commands
+    if (!cherryConfig.isInitialized) {
       const { lastRemoteName, lastRemoteUrl } = getLastRemote();
-
       // Confirm the source repository and whether to use the most recently added remote repository
       const { remoteUrl, remoteName } = await getRepositories(
         lastRemoteName,
@@ -134,7 +99,21 @@ async function main() {
       console.log("selectedCommit", selectedCommit);
       commitHash = selectedCommit;
       targetBranch = await questions.questions3();
+
+      cherryConfig.usingRemoteName = usingRemoteName;
+      cherryConfig.usingRemoteUrl = usingRemoteUrl;
+      cherryConfig.sourceBranch = sourceBranch;
+      cherryConfig.commitHash = commitHash;
+      cherryConfig.targetBranch = targetBranch;
     }
+
+    const {
+      usingRemoteName,
+      usingRemoteUrl,
+      sourceBranch,
+      commitHash,
+      targetBranch,
+    } = cherryConfig;
 
     // Print confirmation information
     printConfirmationInfo(
