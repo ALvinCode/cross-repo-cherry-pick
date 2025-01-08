@@ -35,7 +35,7 @@ crcp git@github.com/user/source-repo.git main abc123 git@github.com/user/target-
 # 配置
 
 你可以在项目根目录下创建一个 .crcpconfig 文件来配置默认选项：
-  
+
 ```json
 {
   "sourceRepo": "git@github.com/user/source-repo.git",
